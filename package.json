@@ -1,0 +1,48 @@
+{
+    "name": "vue-query-factory",
+    "version": "1.0.0",
+    "description": "A secondary encapsulation based on @tanstack/vue-query.",
+    "keywords": [
+        "@tanstack/vue-query",
+        "vue-query"
+    ],
+    "license": "MIT",
+    "author": "twotwoba",
+    "main": "index.js",
+    "scripts": {
+        "dev": "vite",
+        "build": "vite build",
+        "preview": "vite preview",
+        "format": "oxfmt --write .",
+        "fmt": "oxfmt",
+        "fmt:check": "oxfmt --check",
+        "lint": "oxlint --deny-warnings",
+        "lint:fix": "oxlint --fix",
+        "prepare": "husky"
+    },
+    "dependencies": {
+        "@vitejs/plugin-vue": "^6.0.7",
+        "typescript": "^6.0.3",
+        "vite": "^8.0.14"
+    },
+    "devDependencies": {
+        "@commitlint/cli": "^21.0.1",
+        "@commitlint/config-conventional": "^21.0.1",
+        "@tanstack/vue-query": "^5.67.2",
+        "@types/node": "^25.9.1",
+        "husky": "^9.1.7",
+        "lint-staged": "^17.0.5",
+        "oxfmt": "^0.51.0",
+        "oxlint": "^1.66.0",
+        "vue": "^3.5.0"
+    },
+    "peerDependencies": {
+        "@tanstack/vue-query": ">=5.0.0 <6.0.0",
+        "vue": ">=3.3.0"
+    },
+    "lint-staged": {
+        "*.{js,jsx,ts,tsx,mjs,cjs,vue}": "npm run lint",
+        "*": "oxfmt --no-error-on-unmatched-pattern"
+    },
+    "packageManager": "pnpm@10.33.3"
+}
