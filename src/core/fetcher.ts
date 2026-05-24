@@ -5,8 +5,8 @@ import { HttpError } from './error'
 
 const DEFAULT_TIMEOUT = 10_000
 export interface FetcherOptions extends RequestInit {
-    baseURL: string
-    authKey: string
+    baseURL?: string
+    authKey?: string
 
     urlParams?: Record<string, unknown>
     method?: HttpMethod
@@ -53,7 +53,7 @@ export const fetcher = async <T = unknown>(
         })
 
         if (!response.ok) {
-            response.status === 401 && localStorage.removeItem(authKey)
+            response.status === 401 && authKey && localStorage.removeItem(authKey)
             throw new HttpError(response.status, { url, method })
         }
 
@@ -101,7 +101,7 @@ function buildUrl(baseURL: string, endpoint: string, urlParams?: Record<string, 
 }
 
 // 构建请求头
-function buildHeader(authKey: string, customHeaders?: HeadersInit) {
+function buildHeader(authKey?: string, customHeaders?: HeadersInit) {
     const defaultHeaders: Record<string, string> = {
         'Content-Type': 'application/json'
     }
@@ -126,4 +126,19 @@ function buildBody(body: BodyInit, headers: Record<string, string>) {
     }
 
     return finalBody
+}
+
+export function createFetcher(defaultOptions: Partial<FetcherOptions>) {
+    return async <T = unknown>(endpoint: string, customOptions: FetcherOptions): Promise<T> => {
+        const mergedOptions = {
+            ...defaultOptions,
+            ...customOptions,
+            headers: {
+                ...defaultOptions.headers,
+                ...customOptions.headers
+            }
+        }
+
+        return fetcher<T>(endpoint, mergedOptions)
+    }
 }
