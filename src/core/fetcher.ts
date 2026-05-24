@@ -5,13 +5,14 @@ import { HttpError } from './error'
 
 const DEFAULT_TIMEOUT = 10_000
 export interface FetcherOptions extends RequestInit {
+    /** 以下四个选项经常在 createFetcher 中全局固定 */
     baseURL?: string
     authKey?: string
+    businessErrorCodesMap?: Record<string, string> // 业务错误码：提示信息
+    timeout?: number
 
     urlParams?: Record<string, unknown>
     method?: HttpMethod
-    timeout?: number
-    businessErrorCodesMap?: Record<string, string> // 业务错误码：提示信息
 }
 
 /**
@@ -24,12 +25,12 @@ export const fetcher = async <T = unknown>(
     const {
         baseURL,
         authKey,
+        businessErrorCodesMap,
+        timeout = DEFAULT_TIMEOUT,
 
         urlParams,
         method = 'GET',
         body,
-        timeout = DEFAULT_TIMEOUT,
-        businessErrorCodesMap,
         ...rest
     } = options
 

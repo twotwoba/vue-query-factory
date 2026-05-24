@@ -1,54 +1,45 @@
 import { computed, MaybeRef, toValue } from 'vue'
 import { fetcher, FetcherOptions } from './fetcher'
 import { ApiError } from './error'
-import { useQuery } from '@tanstack/vue-query'
+import { useQuery, UseQueryOptions } from '@tanstack/vue-query'
 
-// useQuery 的 options
-interface QueryOptions<TResponse, TRequest, TSelected = TResponse> {
-    params?: MaybeRef<TRequest>
-    enabled?: MaybeRef<boolean>
-    staleTime?: MaybeRef<number>
-    gcTime?: MaybeRef<number>
-    select?: (data: TResponse) => TSelected
-    placeholderData?: TResponse | ((previousValue: TResponse | undefined) => TResponse)
-    refetchInterval?: MaybeRef<number | false>
-    refetchOnWindowFocus?: MaybeRef<boolean>
+export type QueryOptions<TResponse, TRequest, TSelected = TResponse> = Omit<
+    UseQueryOptions<TResponse, ApiError, TSelected>,
+    'queryKey' | 'queryFn'
+> & {
+    params?: MaybeRef<TRequest> // 与 axios 类似，param 传参，最终拼接到 url 上
 }
+
+type RequestFn = <T = unknown>(endpoint: string, options: FetcherOptions) => Promise<T>
 
 /**
  * 创建查询 Hook 工厂方法
  */
 export const createQuery = <TResponse, TRequest>(
     endpoint: string | ((params: TRequest | undefined) => string),
-    fetcherOptions?: FetcherOptions
+    fetcherOptions?: FetcherOptions,
+    request: RequestFn = fetcher
 ) => {
     return <TSelected = TResponse>(options?: QueryOptions<TResponse, TRequest, TSelected>) => {
         const params = computed(() => toValue(options?.params))
-        const enabled = computed(() => toValue(options?.enabled) !== false)
         const isDynamic = typeof endpoint === 'function'
 
         return useQuery<TResponse, ApiError, TSelected>({
             queryKey: computed(() => {
                 const p = params.value
-                const url = isDynamic ? endpoint(p) : endpoint
-                return isDynamic ? [url] : p ? [url, p] : [url]
+                const path = isDynamic ? endpoint(p) : endpoint
+                return isDynamic ? [path] : p ? [path, p] : [path]
             }),
             queryFn: () => {
                 const p = params.value
-                const url = isDynamic ? endpoint(p) : endpoint
-                return fetcher<TResponse>(url, {
+                const path = isDynamic ? endpoint(p) : endpoint
+                return request<TResponse>(path, {
                     ...fetcherOptions,
                     method: 'GET',
                     ...(!isDynamic && { urlParams: p as Record<string, unknown> })
                 })
             },
-            enabled,
-            staleTime: options?.staleTime,
-            gcTime: options?.gcTime,
-            select: options?.select as ((data: TResponse) => TSelected) | undefined,
-            placeholderData: options?.placeholderData as any,
-            refetchInterval: options?.refetchInterval,
-            refetchOnWindowFocus: options?.refetchOnWindowFocus
+            ...toValue(options)
         })
     }
 }
