@@ -4,20 +4,42 @@
     "description": "A secondary encapsulation based on @tanstack/vue-query.",
     "keywords": [
         "@tanstack/vue-query",
+        "tanstack",
+        "vue",
         "vue-query"
     ],
     "license": "MIT",
     "author": "twotwoba",
-    "main": "index.js",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/twotwoba/vue-query-factory"
+    },
+    "files": [
+        "dist"
+    ],
+    "sideEffects": false,
+    "main": "./dist/vue-query-factory.cjs.js",
+    "module": "./dist/vue-query-factory.es.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/vue-query-factory.es.js",
+            "require": "./dist/vue-query-factory.cjs.js"
+        }
+    },
     "scripts": {
         "dev": "vite",
-        "build": "vite build",
-        "preview": "vite preview",
-        "format": "oxfmt --write .",
-        "fmt": "oxfmt",
-        "fmt:check": "oxfmt --check",
+        "build": "vite build && tsc --emitDeclarationOnly --outDir dist",
+        "build:js": "vite build",
+        "build:types": "tsc --emitDeclarationOnly --outDir dist",
         "lint": "oxlint --deny-warnings",
         "lint:fix": "oxlint --fix",
+        "fmt": "oxfmt",
+        "fmt:write": "oxfmt --write .",
+        "fmt:check": "oxfmt --check",
+        "typecheck": "tsc --noEmit",
+        "prepublishOnly": "pnpm run build",
         "prepare": "husky"
     },
     "dependencies": {
