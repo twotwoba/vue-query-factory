@@ -143,3 +143,5 @@ export function createFetcher(defaultOptions: Partial<FetcherOptions>) {
         return fetcher<T>(endpoint, mergedOptions)
     }
 }
+
+export type RequestFn = <T = unknown>(endpoint: string, options: FetcherOptions) => Promise<T>

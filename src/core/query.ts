@@ -1,5 +1,5 @@
 import { computed, MaybeRef, toValue } from 'vue'
-import { fetcher, FetcherOptions } from './fetcher'
+import { fetcher, FetcherOptions, RequestFn } from './fetcher'
 import { ApiError } from './error'
 import { useQuery, UseQueryOptions } from '@tanstack/vue-query'
 
@@ -9,8 +9,6 @@ export type QueryOptions<TResponse, TRequest, TSelected = TResponse> = Omit<
 > & {
     params?: MaybeRef<TRequest> // 与 axios 类似，param 传参，最终拼接到 url 上
 }
-
-type RequestFn = <T = unknown>(endpoint: string, options: FetcherOptions) => Promise<T>
 
 /**
  * 创建查询 Hook 工厂方法
