@@ -1,12 +1,15 @@
 import { createFetcher, FetcherOptions } from './fetcher'
 import { createQuery } from './query'
+import { createMutation } from './mutation'
+import { createInfiniteQuery, PageParam } from './infinite-query'
+import { HttpMethod } from '../types/types'
 
 export interface ClientOptions extends Partial<FetcherOptions> {}
 
 /**
  * 创建 API 客户端，选择性固定 baseURL, timeout 等方法
  *
- * @example  const {useQuery} = createClient({baseURL: "http://demo/api", businessErrorCodesMap: {888: "错了错了错了！"}})
+ * @example  const {createQuery, createMutation, createInfiniteQuery} = createClient({baseURL: "http://demo/api", businessErrorCodesMap: {888: "错了错了错了！"}})
  */
 export function createClient(options: ClientOptions) {
     const request = createFetcher(options)
@@ -16,10 +19,20 @@ export function createClient(options: ClientOptions) {
         createQuery: <TResponse, TRequest>(
             endpoint: string | ((params: TRequest | undefined) => string),
             fetcherOptions?: Omit<FetcherOptions, keyof typeof options>
-        ) => createQuery<TResponse, TRequest>(endpoint, fetcherOptions, request)
+        ) => createQuery<TResponse, TRequest>(endpoint, fetcherOptions, request),
 
-        // 后续扩展
-        // createMutation,
-        // createInfiniteQuery,
+        createMutation: <
+            TResponse = unknown,
+            TBody extends BodyInit | null | undefined = BodyInit | null | undefined
+        >(
+            endpoint: string | ((variables: TBody) => string),
+            method: Exclude<HttpMethod, 'GET'> = 'POST',
+            fetcherOptions?: Omit<FetcherOptions, keyof typeof options>
+        ) => createMutation<TResponse, TBody>(endpoint, method, fetcherOptions, request),
+
+        createInfiniteQuery: <TResponse, TRequest>(
+            endpoint: string | ((params: TRequest | undefined, pageParam: PageParam) => string),
+            fetcherOptions?: Omit<FetcherOptions, keyof typeof options>
+        ) => createInfiniteQuery<TResponse, TRequest>(endpoint, fetcherOptions, request)
     }
 }
