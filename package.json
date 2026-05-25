@@ -1,6 +1,6 @@
 {
     "name": "vue-query-factory",
-    "version": "0.0.3",
+    "version": "0.0.4",
     "description": "A secondary encapsulation based on @tanstack/vue-query.",
     "keywords": [
         "@tanstack/vue-query",
