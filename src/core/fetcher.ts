@@ -4,6 +4,11 @@ import { HttpMethod } from '../types'
 import { BusinessError, HttpError } from './error'
 
 const DEFAULT_TIMEOUT = 10_000
+export type ResponseResolver<T = unknown> = (
+    response: unknown,
+    businessErrorCodesMap: Record<string, string>
+) => T
+
 export interface FetcherOptions extends RequestInit {
     /** 以下选项经常在 createFetcher 中全局固定 */
     baseURL?: string
@@ -13,6 +18,8 @@ export interface FetcherOptions extends RequestInit {
     timeout?: number
     /** 自定义存储实例，默认使用 localStorage */
     storage?: Storage
+    /** 自定义响应解包函数，默认使用 resolveResponse（期望 { code, data, message } 结构） */
+    responseResolver?: ResponseResolver
 
     urlParams?: Record<string, unknown>
     method?: HttpMethod
@@ -32,6 +39,7 @@ export const fetcher = async <T = unknown>(
         businessErrorCodesMap,
         timeout = DEFAULT_TIMEOUT,
         storage,
+        responseResolver = resolveResponse,
         urlParams,
         method = 'GET',
         body,
@@ -67,7 +75,7 @@ export const fetcher = async <T = unknown>(
         const contentType = response.headers.get('content-type')
         if (contentType?.includes('application/json')) {
             const res = await response.json()
-            return resolveResponse(res, businessErrorCodesMap) as T
+            return responseResolver(res, businessErrorCodesMap ?? {}) as T
         }
 
         return response.text() as unknown as T

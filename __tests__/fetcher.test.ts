@@ -269,6 +269,24 @@ describe('fetcher', () => {
         const callArgs = mockFetch.mock.calls[0][1] as RequestInit
         expect(callArgs.body).toBeUndefined()
     })
+
+    it('should use custom responseResolver', async () => {
+        mockFetch.mockResolvedValueOnce(
+            mockJsonResponse({ status: 'ok', result: { id: 1, name: 'test' } })
+        )
+
+        const customResolver = (res: any) => {
+            if (res.status !== 'ok') throw new Error('Request failed')
+            return res.result
+        }
+
+        const result = await fetcher<{ id: number; name: string }>('/api/test', {
+            baseURL: 'http://api.com',
+            responseResolver: customResolver
+        })
+
+        expect(result).toEqual({ id: 1, name: 'test' })
+    })
 })
 
 describe('createFetcher', () => {
