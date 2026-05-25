@@ -39,23 +39,24 @@
         "fmt:write": "oxfmt --write .",
         "fmt:check": "oxfmt --check",
         "typecheck": "tsc --noEmit",
+        "test": "vitest run",
+        "test:watch": "vitest",
         "prepublishOnly": "pnpm run build",
         "prepare": "husky"
-    },
-    "dependencies": {
-        "@vitejs/plugin-vue": "^6.0.7",
-        "typescript": "^6.0.3",
-        "vite": "^8.0.14"
     },
     "devDependencies": {
         "@commitlint/cli": "^21.0.1",
         "@commitlint/config-conventional": "^21.0.1",
         "@tanstack/vue-query": "^5.67.2",
         "@types/node": "^25.9.1",
+        "@vitejs/plugin-vue": "^6.0.7",
         "husky": "^9.1.7",
         "lint-staged": "^17.0.5",
         "oxfmt": "^0.51.0",
         "oxlint": "^1.66.0",
+        "typescript": "^6.0.3",
+        "vite": "^8.0.14",
+        "vitest": "^4.1.7",
         "vue": "^3.5.0"
     },
     "peerDependencies": {

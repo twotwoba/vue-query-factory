@@ -14,10 +14,10 @@ export function resolveResponse<T = unknown>(
     response: HttpResponse<T>,
     businessCodesMap: Record<string, string> = {}
 ): T {
-    const BusinessCodes = Object.keys(businessCodesMap)
-    if (BusinessCodes.includes(String(response.code))) {
+    const codeKey = String(response.code)
+    if (codeKey in businessCodesMap) {
         const message =
-            businessCodesMap[response.code] || response.message || `操作失败，(${response.code})`
+            businessCodesMap[codeKey] || response.message || `操作失败，(${response.code})`
         throw new BusinessError(response.code, message, response)
     }
     return response.data as T

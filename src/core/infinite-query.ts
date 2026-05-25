@@ -1,8 +1,7 @@
 import { computed, MaybeRef, toValue } from 'vue'
 import { fetcher, FetcherOptions, RequestFn } from './fetcher'
 import { ApiError } from './error'
-import { useInfiniteQuery } from '@tanstack/vue-query'
-import type { InfiniteData } from '@tanstack/vue-query'
+import { useInfiniteQuery, InfiniteData } from '@tanstack/vue-query'
 
 export interface PageParam {
     pageNum: number
@@ -65,6 +64,7 @@ export const createInfiniteQuery = <TResponse, TRequest>(
         const initialPageParam: PageParam = { pageNum: initialPage, pageSize }
 
         return useInfiniteQuery<TResponse, ApiError, TSelected, readonly unknown[], PageParam>({
+            // queryKey 使用 initialPageParam 构建以保持稳定——无限查询的 key 标识整个查询而非单页
             queryKey: computed(() => {
                 const p = params.value
                 const url = isDynamic ? endpoint(p, initialPageParam) : endpoint

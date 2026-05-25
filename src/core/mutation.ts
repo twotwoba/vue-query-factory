@@ -1,5 +1,5 @@
 import { useMutation, UseMutationOptions, useQueryClient } from '@tanstack/vue-query'
-import { HttpMethod } from '../types/types'
+import { HttpMethod } from '../types'
 import { fetcher, FetcherOptions, RequestFn } from './fetcher'
 import { ApiError } from './error'
 
@@ -40,6 +40,7 @@ export const createMutation = <
         return useMutation<TResponse, ApiError, TBody>({
             mutationFn: (variables: TBody) => {
                 const url = typeof endpoint === 'function' ? endpoint(variables) : endpoint
+                // 动态端点：目前 variables 中用于构建 URL 路径的字段仍会包含在请求体中
                 return request<TResponse>(url, {
                     ...fetcherOptions,
                     method,

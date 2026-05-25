@@ -2,7 +2,7 @@ import { createFetcher, FetcherOptions } from './fetcher'
 import { createQuery } from './query'
 import { createMutation } from './mutation'
 import { createInfiniteQuery, PageParam } from './infinite-query'
-import { HttpMethod } from '../types/types'
+import { HttpMethod } from '../types'
 
 export interface ClientOptions extends Partial<FetcherOptions> {}
 
@@ -18,7 +18,7 @@ export function createClient(options: ClientOptions) {
         request,
         createQuery: <TResponse, TRequest>(
             endpoint: string | ((params: TRequest | undefined) => string),
-            fetcherOptions?: Omit<FetcherOptions, keyof typeof options>
+            fetcherOptions?: FetcherOptions
         ) => createQuery<TResponse, TRequest>(endpoint, fetcherOptions, request),
 
         createMutation: <
@@ -27,12 +27,12 @@ export function createClient(options: ClientOptions) {
         >(
             endpoint: string | ((variables: TBody) => string),
             method: Exclude<HttpMethod, 'GET'> = 'POST',
-            fetcherOptions?: Omit<FetcherOptions, keyof typeof options>
+            fetcherOptions?: FetcherOptions
         ) => createMutation<TResponse, TBody>(endpoint, method, fetcherOptions, request),
 
         createInfiniteQuery: <TResponse, TRequest>(
             endpoint: string | ((params: TRequest | undefined, pageParam: PageParam) => string),
-            fetcherOptions?: Omit<FetcherOptions, keyof typeof options>
+            fetcherOptions?: FetcherOptions
         ) => createInfiniteQuery<TResponse, TRequest>(endpoint, fetcherOptions, request)
     }
 }

@@ -1,7 +1,7 @@
 import { resolveResponse } from '../helper/resolve-response'
 import { omitNilOfObj } from '../helper/utils'
-import { HttpMethod } from '../types/types'
-import { HttpError } from './error'
+import { HttpMethod } from '../types'
+import { BusinessError, HttpError } from './error'
 
 const DEFAULT_TIMEOUT = 10_000
 export interface FetcherOptions extends RequestInit {
@@ -11,6 +11,8 @@ export interface FetcherOptions extends RequestInit {
     authHeaderKey?: string
     businessErrorCodesMap?: Record<string, string> // 业务错误码：提示信息
     timeout?: number
+    /** 自定义存储实例，默认使用 localStorage */
+    storage?: Storage
 
     urlParams?: Record<string, unknown>
     method?: HttpMethod
@@ -29,7 +31,7 @@ export const fetcher = async <T = unknown>(
         authHeaderKey,
         businessErrorCodesMap,
         timeout = DEFAULT_TIMEOUT,
-
+        storage,
         urlParams,
         method = 'GET',
         body,
@@ -40,8 +42,8 @@ export const fetcher = async <T = unknown>(
         throw new Error('baseURL/endpoint cannot be empty.')
     }
     const url = buildUrl(baseURL, endpoint, urlParams)
-    const headers = buildHeader(authStorageKey, authHeaderKey, rest.headers)
-    const finalBody = buildBody(body!, headers as Record<string, string>)
+    const headers = buildHeader(authStorageKey, authHeaderKey, rest.headers, storage)
+    const finalBody = buildBody(body, headers as Record<string, string>)
 
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), timeout)
@@ -56,7 +58,9 @@ export const fetcher = async <T = unknown>(
         })
 
         if (!response.ok) {
-            response.status === 401 && authStorageKey && localStorage.removeItem(authStorageKey)
+            if (response.status === 401 && authStorageKey) {
+                getStorage(storage).removeItem(authStorageKey)
+            }
             throw new HttpError(response.status, { url, method })
         }
 
@@ -68,6 +72,10 @@ export const fetcher = async <T = unknown>(
 
         return response.text() as unknown as T
     } catch (error) {
+        // 已经是已知的 API 错误，直接透传
+        if (error instanceof HttpError || error instanceof BusinessError) {
+            throw error
+        }
         if (error instanceof DOMException && error.name === 'AbortError') {
             throw new HttpError(408, { url, method })
         }
@@ -104,31 +112,59 @@ function buildUrl(baseURL: string, endpoint: string, urlParams?: Record<string, 
 }
 
 // 构建请求头
-function buildHeader(authStorageKey?: string, authHeaderKey?: string, customHeaders?: HeadersInit) {
+function buildHeader(
+    authStorageKey?: string,
+    authHeaderKey?: string,
+    customHeaders?: HeadersInit,
+    storage?: Storage
+) {
     const defaultHeaders: Record<string, string> = {
         'Content-Type': 'application/json'
     }
 
     if (authStorageKey && authHeaderKey) {
-        const token = localStorage.getItem(authStorageKey)
+        const token = getStorage(storage).getItem(authStorageKey)
         token && (defaultHeaders[authHeaderKey] = token)
     }
 
-    return { ...defaultHeaders, ...(customHeaders ?? {}) }
+    const custom: Record<string, string> = {}
+    if (customHeaders) {
+        if (customHeaders instanceof Headers) {
+            customHeaders.forEach((value, key) => {
+                custom[key] = value
+            })
+        } else if (Array.isArray(customHeaders)) {
+            for (const [key, value] of customHeaders) {
+                custom[key] = value
+            }
+        } else {
+            Object.assign(custom, customHeaders)
+        }
+    }
+
+    return { ...defaultHeaders, ...custom }
+}
+
+// 获取存储实例，SSR 环境下安全回退
+function getStorage(storage?: Storage): Storage {
+    if (storage) return storage
+    if (typeof localStorage !== 'undefined') return localStorage
+    throw new Error(
+        'localStorage is not available in this environment. ' +
+            'Please provide a custom storage via the `storage` option.'
+    )
 }
 
 // 构建请求体
-function buildBody(body: BodyInit, headers: Record<string, string>) {
-    let finalBody: string | FormData | undefined
+function buildBody(body: BodyInit | null | undefined, headers: Record<string, string>) {
+    if (body == null) return undefined
 
     if (body instanceof FormData) {
         delete headers['Content-Type']
         return body
-    } else {
-        finalBody = typeof body === 'string' ? body : JSON.stringify(body)
     }
 
-    return finalBody
+    return typeof body === 'string' ? body : JSON.stringify(body)
 }
 
 export function createFetcher(defaultOptions: Partial<FetcherOptions>) {
