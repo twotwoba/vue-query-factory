@@ -23,6 +23,23 @@ app.use(VueQueryPlugin)
 app.mount('#app')
 ```
 
+> **全局默认配置**：本库封装的 options 主要用于控制 fetcher 传参，不含 `@tanstack/vue-query` 的全局配置项。如需设置 `placeholderData`、`staleTime` 等全局默认值，请通过 `QueryClient` 的 `defaultOptions` 配置：
+>
+> ```ts
+> // example
+> import { QueryClient, VueQueryPlugin } from '@tanstack/vue-query'
+>
+> const queryClient = new QueryClient({
+>     defaultOptions: {
+>         queries: {
+>             placeholderData: (prev) => prev
+>         }
+>     }
+> })
+>
+> app.use(VueQueryPlugin, { queryClient })
+> ```
+
 ## Quick Start
 
 ```ts
