@@ -5,9 +5,10 @@ import { HttpError } from './error'
 
 const DEFAULT_TIMEOUT = 10_000
 export interface FetcherOptions extends RequestInit {
-    /** 以下四个选项经常在 createFetcher 中全局固定 */
+    /** 以下选项经常在 createFetcher 中全局固定 */
     baseURL?: string
-    authKey?: string
+    authStorageKey?: string
+    authHeaderKey?: string
     businessErrorCodesMap?: Record<string, string> // 业务错误码：提示信息
     timeout?: number
 
@@ -24,7 +25,8 @@ export const fetcher = async <T = unknown>(
 ): Promise<T> => {
     const {
         baseURL,
-        authKey,
+        authStorageKey,
+        authHeaderKey,
         businessErrorCodesMap,
         timeout = DEFAULT_TIMEOUT,
 
@@ -38,7 +40,7 @@ export const fetcher = async <T = unknown>(
         throw new Error('baseURL/endpoint cannot be empty.')
     }
     const url = buildUrl(baseURL, endpoint, urlParams)
-    const headers = buildHeader(authKey, rest.headers)
+    const headers = buildHeader(authStorageKey, authHeaderKey, rest.headers)
     const finalBody = buildBody(body!, headers as Record<string, string>)
 
     const controller = new AbortController()
@@ -54,7 +56,7 @@ export const fetcher = async <T = unknown>(
         })
 
         if (!response.ok) {
-            response.status === 401 && authKey && localStorage.removeItem(authKey)
+            response.status === 401 && authStorageKey && localStorage.removeItem(authStorageKey)
             throw new HttpError(response.status, { url, method })
         }
 
@@ -102,14 +104,14 @@ function buildUrl(baseURL: string, endpoint: string, urlParams?: Record<string, 
 }
 
 // 构建请求头
-function buildHeader(authKey?: string, customHeaders?: HeadersInit) {
+function buildHeader(authStorageKey?: string, authHeaderKey?: string, customHeaders?: HeadersInit) {
     const defaultHeaders: Record<string, string> = {
         'Content-Type': 'application/json'
     }
 
-    if (authKey) {
-        const token = localStorage.getItem(authKey)
-        token && (defaultHeaders[authKey] = token)
+    if (authStorageKey && authHeaderKey) {
+        const token = localStorage.getItem(authStorageKey)
+        token && (defaultHeaders[authHeaderKey] = token)
     }
 
     return { ...defaultHeaders, ...(customHeaders ?? {}) }

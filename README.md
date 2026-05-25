@@ -17,7 +17,8 @@ import { createClient } from 'vue-query-factory'
 export const { createQuery, createMutation, createInfiniteQuery } = createClient({
     baseURL: '/api',
     timeout: 10_000,
-    authKey: 'token', // 自动从 localStorage 取 token 并设置为请求头
+    authStorageKey: 'token', // localStorage 中存储 token 的 key
+    authHeaderKey: 'Access-Token', // 请求头中携带 token 的 header 名称
     businessErrorCodesMap: {
         '10001': '用户不存在',
         '10002': '余额不足'
@@ -55,15 +56,16 @@ export const useUserPage = createInfiniteQuery<
 
 ### createClient
 
-创建 API 客户端，配置全局的 `baseURL`、`timeout`、`authKey` 等，返回绑定好配置的工厂方法。
+创建 API 客户端，配置全局的 `baseURL`、`timeout`、`authStorageKey`、`authHeaderKey` 等，返回绑定好配置的工厂方法。
 
 ```ts
 const { createQuery, createMutation, createInfiniteQuery, request } = createClient({
-    baseURL: '/api',              // 必填，接口基础路径
-    timeout: 10_000,              // 请求超时（默认 10s）
-    authKey: 'token',             // localStorage 中的 token key，自动附加到请求头
-    businessErrorCodesMap: { ... }, // 业务错误码映射
-    headers: { ... },             // 自定义默认请求头
+    baseURL: '/api',                 // 必填，接口基础路径
+    timeout: 10_000,                 // 请求超时（默认 10s）
+    authStorageKey: 'token',         // localStorage 中存储 token 的 key
+    authHeaderKey: 'Access-Token',   // 请求头中携带 token 的 header 名称
+    businessErrorCodesMap: { ... },  // 业务错误码映射
+    headers: { ... },                // 自定义默认请求头
 })
 ```
 
@@ -269,7 +271,8 @@ if (isBusinessError(e)) {
 | ----------------------- | ------------------------- | ---------------------------------------- | ----------------------------------------- |
 | `baseURL`               | `string`                  | -                                        | 接口基础路径（必填）                      |
 | `timeout`               | `number`                  | `10000`                                  | 请求超时（ms）                            |
-| `authKey`               | `string`                  | -                                        | token 在 localStorage 中的 key            |
+| `authStorageKey`        | `string`                  | -                                        | localStorage 中存储 token 的 key          |
+| `authHeaderKey`         | `string`                  | -                                        | 请求头中携带 token 的 header 名称         |
 | `businessErrorCodesMap` | `Record<string, string>`  | `{}`                                     | 业务错误码到提示消息的映射                |
 | `headers`               | `HeadersInit`             | `{ 'Content-Type': 'application/json' }` | 自定义请求头                              |
 | `urlParams`             | `Record<string, unknown>` | -                                        | URL query 参数（null/undefined 会被过滤） |
