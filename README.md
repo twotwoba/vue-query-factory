@@ -8,6 +8,21 @@
 pnpm add vue-query-factory
 ```
 
+## Setup
+
+本库基于 `@tanstack/vue-query`，使用前需在 Vue 应用中注册 `VueQueryPlugin`：
+
+```ts
+// main.ts
+import { createApp } from 'vue'
+import { VueQueryPlugin } from '@tanstack/vue-query'
+import App from './App.vue'
+
+const app = createApp(App)
+app.use(VueQueryPlugin)
+app.mount('#app')
+```
+
 ## Quick Start
 
 ```ts
@@ -18,6 +33,8 @@ export const { createQuery, createMutation, createInfiniteQuery } = createClient
     baseURL: '/api',
     timeout: 10_000,
     authStorageKey: 'token', // localStorage 中存储 token 的 key
+    // 当 storage 中存储的是对象时，可以传入自定义函数提取 token：
+    // authStorageKey: () => JSON.parse(localStorage.getItem('user_info')!).accessToken,
     authHeaderKey: 'Access-Token', // 请求头中携带 token 的 header 名称
     businessErrorCodesMap: {
         '10001': '用户不存在',
@@ -267,17 +284,17 @@ if (isBusinessError(e)) {
 
 `createClient` 和各工厂方法支持的请求配置：
 
-| 选项                    | 类型                      | 默认值                                   | 说明                                      |
-| ----------------------- | ------------------------- | ---------------------------------------- | ----------------------------------------- |
-| `baseURL`               | `string`                  | -                                        | 接口基础路径（必填）                      |
-| `timeout`               | `number`                  | `10000`                                  | 请求超时（ms）                            |
-| `authStorageKey`        | `string`                  | -                                        | localStorage 中存储 token 的 key          |
-| `authHeaderKey`         | `string`                  | -                                        | 请求头中携带 token 的 header 名称         |
-| `businessErrorCodesMap` | `Record<string, string>`  | `{}`                                     | 业务错误码到提示消息的映射                |
-| `headers`               | `HeadersInit`             | `{ 'Content-Type': 'application/json' }` | 自定义请求头                              |
-| `urlParams`             | `Record<string, unknown>` | -                                        | URL query 参数（null/undefined 会被过滤） |
-| `method`                | `HttpMethod`              | `'GET'`                                  | 请求方法                                  |
-| `body`                  | `BodyInit`                | -                                        | 请求体（支持 FormData）                   |
+| 选项                    | 类型                             | 默认值                                   | 说明                                                     |
+| ----------------------- | -------------------------------- | ---------------------------------------- | -------------------------------------------------------- |
+| `baseURL`               | `string`                         | -                                        | 接口基础路径（必填）                                     |
+| `timeout`               | `number`                         | `10000`                                  | 请求超时（ms）                                           |
+| `authStorageKey`        | `string \| () => string \| null` | -                                        | localStorage 中存储 token 的 key，或自定义函数获取 token |
+| `authHeaderKey`         | `string`                         | -                                        | 请求头中携带 token 的 header 名称                        |
+| `businessErrorCodesMap` | `Record<string, string>`         | `{}`                                     | 业务错误码到提示消息的映射                               |
+| `headers`               | `HeadersInit`                    | `{ 'Content-Type': 'application/json' }` | 自定义请求头                                             |
+| `urlParams`             | `Record<string, unknown>`        | -                                        | URL query 参数（null/undefined 会被过滤）                |
+| `method`                | `HttpMethod`                     | `'GET'`                                  | 请求方法                                                 |
+| `body`                  | `BodyInit`                       | -                                        | 请求体（支持 FormData）                                  |
 
 ## License
 

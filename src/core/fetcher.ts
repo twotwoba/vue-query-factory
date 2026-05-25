@@ -12,7 +12,7 @@ export type ResponseResolver<T = unknown> = (
 export interface FetcherOptions extends RequestInit {
     /** 以下选项经常在 createFetcher 中全局固定 */
     baseURL?: string
-    authStorageKey?: string
+    authStorageKey?: string | (() => string | null | undefined)
     authHeaderKey?: string
     businessErrorCodesMap?: Record<string, string> // 业务错误码：提示信息
     timeout?: number
@@ -66,7 +66,7 @@ export const fetcher = async <T = unknown>(
         })
 
         if (!response.ok) {
-            if (response.status === 401 && authStorageKey) {
+            if (response.status === 401 && authStorageKey && typeof authStorageKey === 'string') {
                 getStorage(storage).removeItem(authStorageKey)
             }
             throw new HttpError(response.status, { url, method })
@@ -121,7 +121,7 @@ function buildUrl(baseURL: string, endpoint: string, urlParams?: Record<string, 
 
 // 构建请求头
 function buildHeader(
-    authStorageKey?: string,
+    authStorageKey?: string | (() => string | null | undefined),
     authHeaderKey?: string,
     customHeaders?: HeadersInit,
     storage?: Storage
@@ -131,7 +131,10 @@ function buildHeader(
     }
 
     if (authStorageKey && authHeaderKey) {
-        const token = getStorage(storage).getItem(authStorageKey)
+        const token =
+            typeof authStorageKey === 'function'
+                ? authStorageKey()
+                : getStorage(storage).getItem(authStorageKey)
         token && (defaultHeaders[authHeaderKey] = token)
     }
 

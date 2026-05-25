@@ -155,6 +155,61 @@ describe('fetcher', () => {
         expect((callArgs.headers as Record<string, string>)['Authorization']).toBe('my-jwt-token')
     })
 
+    it('should inject auth token via custom function', async () => {
+        const getToken = vi.fn(() => {
+            const raw = localStorage.getItem('user_info')
+            if (!raw) return null
+            return JSON.parse(raw).accessToken
+        })
+
+        storage['user_info'] = JSON.stringify({ accessToken: 'parsed-token', refreshToken: 'xxx' })
+        mockFetch.mockResolvedValueOnce(mockJsonResponse({ code: 0, data: null }))
+
+        await fetcher('/api/me', {
+            baseURL: 'http://api.com',
+            authStorageKey: getToken,
+            authHeaderKey: 'Authorization'
+        })
+
+        const callArgs = mockFetch.mock.calls[0][1] as RequestInit
+        expect((callArgs.headers as Record<string, string>)['Authorization']).toBe('parsed-token')
+    })
+
+    it('should skip auth header when custom function returns null', async () => {
+        const getToken = vi.fn(() => null)
+        mockFetch.mockResolvedValueOnce(mockJsonResponse({ code: 0, data: null }))
+
+        await fetcher('/api/me', {
+            baseURL: 'http://api.com',
+            authStorageKey: getToken,
+            authHeaderKey: 'Authorization'
+        })
+
+        const callArgs = mockFetch.mock.calls[0][1] as RequestInit
+        expect((callArgs.headers as Record<string, string>)['Authorization']).toBeUndefined()
+    })
+
+    it('should NOT clear storage on 401 when authStorageKey is a function', async () => {
+        const getToken = vi.fn(() => 'some-token')
+        storage['user_info'] = JSON.stringify({ accessToken: 'some-token' })
+        mockFetch.mockResolvedValueOnce({
+            ok: false,
+            status: 401,
+            headers: new Headers()
+        })
+
+        try {
+            await fetcher('/api/me', {
+                baseURL: 'http://api.com',
+                authStorageKey: getToken,
+                authHeaderKey: 'Authorization'
+            })
+        } catch {}
+
+        // storage should NOT be cleared since authStorageKey is a function
+        expect(storage['user_info']).toBeDefined()
+    })
+
     it('should clear auth token on 401', async () => {
         storage['auth_token'] = 'expired-token'
         mockFetch.mockResolvedValueOnce({
