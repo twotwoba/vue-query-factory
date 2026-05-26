@@ -1,10 +1,10 @@
 import { useMutation, UseMutationOptions, useQueryClient } from '@tanstack/vue-query'
-import { HttpMethod } from '../types'
+import { ExtractInner, HttpMethod } from '../types'
 import { fetcher, FetcherOptions, RequestFn } from './fetcher'
 import { ApiError } from './error'
 
 export type MutationOptions<TResponse, TError, TBody> = Omit<
-    UseMutationOptions<TResponse, TError, TBody>,
+    ExtractInner<UseMutationOptions<TResponse, TError, TBody>>,
     'mutationFn' | 'onSuccess' | 'onError' | 'onSettled'
 > & {
     invalidateKeys?: string[]

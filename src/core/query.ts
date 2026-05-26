@@ -2,9 +2,10 @@ import { computed, MaybeRef, toValue } from 'vue'
 import { fetcher, FetcherOptions, RequestFn } from './fetcher'
 import { ApiError } from './error'
 import { useQuery, UseQueryOptions } from '@tanstack/vue-query'
+import { ExtractInner } from '../types'
 
 export type QueryOptions<TResponse, TRequest, TSelected = TResponse> = Omit<
-    UseQueryOptions<TResponse, ApiError, TSelected>,
+    ExtractInner<UseQueryOptions<TResponse, ApiError, TSelected>>,
     'queryKey' | 'queryFn'
 > & {
     params?: MaybeRef<TRequest> // 与 axios 类似，param 传参，最终拼接到 url 上
