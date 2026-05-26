@@ -21,10 +21,7 @@ export function createClient(options: ClientOptions) {
             fetcherOptions?: FetcherOptions
         ) => createQuery<TResponse, TRequest>(endpoint, fetcherOptions, request),
 
-        createMutation: <
-            TResponse = unknown,
-            TBody extends BodyInit | null | undefined = BodyInit | null | undefined
-        >(
+        createMutation: <TResponse = unknown, TBody = unknown>(
             endpoint: string | ((variables: TBody) => string),
             method: Exclude<HttpMethod, 'GET'> = 'POST',
             fetcherOptions?: FetcherOptions
