@@ -25,10 +25,7 @@ export type MutationOptions<TResponse, TError, TBody> = Omit<
  *   (vars) => `/api/user/${vars.id}`, 'PUT'
  * )
  */
-export const createMutation = <
-    TResponse = unknown,
-    TBody extends BodyInit | null | undefined = BodyInit | null | undefined
->(
+export const createMutation = <TResponse = unknown, TBody = unknown>(
     endpoint: string | ((variables: TBody) => string),
     method: Exclude<HttpMethod, 'GET'> = 'POST',
     fetcherOptions?: FetcherOptions,
@@ -44,7 +41,7 @@ export const createMutation = <
                 return request<TResponse>(url, {
                     ...fetcherOptions,
                     method,
-                    body: variables
+                    body: variables as BodyInit
                 })
             },
             onSuccess: async (data, variables) => {
