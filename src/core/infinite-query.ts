@@ -8,7 +8,11 @@ export interface PageParam {
     pageSize: number
 }
 
-export interface InfiniteQueryOptions<TResponse, TRequest, TSelected = TResponse> {
+export interface InfiniteQueryOptions<
+    TResponse,
+    TRequest,
+    TSelected = InfiniteData<TResponse, PageParam>
+> {
     params?: MaybeRef<TRequest>
     pageKey?: string
     pageSizeKey?: string
@@ -36,8 +40,10 @@ const DEFAULT_PAGE_SIZE_KEY = 'pageSize'
 
 function defaultExtractList<T>(res: T): unknown[] {
     if (Array.isArray(res)) return res
+    if (!res || typeof res !== 'object') return []
     const r = res as Record<string, unknown>
-    return ((r.list ?? r.data ?? r.records ?? r.content) as unknown[]) ?? []
+    const list = r.list ?? r.data ?? r.records ?? r.content
+    return Array.isArray(list) ? list : []
 }
 
 /**
@@ -49,7 +55,7 @@ export const createInfiniteQuery = <TResponse, TRequest>(
     fetcherOptions?: FetcherOptions,
     request: RequestFn = fetcher
 ) => {
-    return <TSelected = TResponse>(
+    return <TSelected = InfiniteData<TResponse, PageParam>>(
         options?: InfiniteQueryOptions<TResponse, TRequest, TSelected>
     ) => {
         const params = computed(() => toValue(options?.params))
@@ -68,14 +74,16 @@ export const createInfiniteQuery = <TResponse, TRequest>(
             queryKey: computed(() => {
                 const p = params.value
                 const url = isDynamic ? endpoint(p, initialPageParam) : endpoint
-                return p ? [url, p] : [url]
+                const pageConfig = { pageKey, pageSizeKey, initialPage, pageSize }
+                return p ? [url, p, pageConfig] : [url, pageConfig]
             }),
-            queryFn: ({ pageParam }) => {
+            queryFn: ({ pageParam, signal }) => {
                 const p = params.value
                 const url = isDynamic ? endpoint(p, pageParam) : endpoint
                 return request<TResponse>(url, {
                     ...fetcherOptions,
                     method: 'GET',
+                    signal,
                     ...(!isDynamic && {
                         urlParams: {
                             ...(p as Record<string, unknown>),

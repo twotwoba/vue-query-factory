@@ -29,12 +29,13 @@ export const createQuery = <TResponse, TRequest>(
                 const path = isDynamic ? endpoint(p) : endpoint
                 return isDynamic ? [path] : p ? [path, p] : [path]
             }),
-            queryFn: () => {
+            queryFn: ({ signal }) => {
                 const p = params.value
                 const path = isDynamic ? endpoint(p) : endpoint
                 return request<TResponse>(path, {
                     ...fetcherOptions,
                     method: 'GET',
+                    signal,
                     ...(!isDynamic && { urlParams: p as Record<string, unknown> })
                 })
             },

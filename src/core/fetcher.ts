@@ -43,6 +43,7 @@ export const fetcher = async <T = unknown>(
         urlParams,
         method = 'GET',
         body,
+        signal,
         ...rest
     } = options
 
@@ -54,6 +55,18 @@ export const fetcher = async <T = unknown>(
     const finalBody = buildBody(body, headers as Record<string, string>)
 
     const controller = new AbortController()
+    const onAbort = () => {
+        if (signal && 'reason' in signal) {
+            controller.abort(signal.reason)
+            return
+        }
+        controller.abort()
+    }
+    if (signal?.aborted) {
+        onAbort()
+    } else {
+        signal?.addEventListener('abort', onAbort, { once: true })
+    }
     const timeoutId = setTimeout(() => controller.abort(), timeout)
 
     try {
@@ -91,6 +104,7 @@ export const fetcher = async <T = unknown>(
         throw new HttpError(999, { url, method })
     } finally {
         clearTimeout(timeoutId)
+        signal?.removeEventListener('abort', onAbort)
     }
 }
 
@@ -183,10 +197,7 @@ export function createFetcher(defaultOptions: Partial<FetcherOptions>) {
         const mergedOptions = {
             ...defaultOptions,
             ...customOptions,
-            headers: {
-                ...defaultOptions.headers,
-                ...customOptions.headers
-            }
+            headers: mergeHeaders(defaultOptions.headers, customOptions.headers)
         }
 
         return fetcher<T>(endpoint, mergedOptions)
@@ -194,3 +205,35 @@ export function createFetcher(defaultOptions: Partial<FetcherOptions>) {
 }
 
 export type RequestFn = <T = unknown>(endpoint: string, options: FetcherOptions) => Promise<T>
+
+function mergeHeaders(
+    defaultHeaders?: HeadersInit,
+    customHeaders?: HeadersInit
+): Record<string, string> | undefined {
+    if (!defaultHeaders && !customHeaders) return undefined
+    return {
+        ...headersToRecord(defaultHeaders),
+        ...headersToRecord(customHeaders)
+    }
+}
+
+function headersToRecord(headers?: HeadersInit): Record<string, string> {
+    const record: Record<string, string> = {}
+    if (!headers) return record
+
+    if (headers instanceof Headers) {
+        headers.forEach((value, key) => {
+            record[key] = value
+        })
+        return record
+    }
+
+    if (Array.isArray(headers)) {
+        for (const [key, value] of headers) {
+            record[key] = value
+        }
+        return record
+    }
+
+    return { ...headers }
+}

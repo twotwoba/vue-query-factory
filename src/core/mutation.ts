@@ -1,3 +1,4 @@
+import { toValue } from 'vue'
 import { useMutation, UseMutationOptions, useQueryClient } from '@tanstack/vue-query'
 import { ExtractInner, HttpMethod } from '../types'
 import { fetcher, FetcherOptions, RequestFn } from './fetcher'
@@ -33,8 +34,11 @@ export const createMutation = <TResponse = unknown, TBody = unknown>(
 ) => {
     return (options?: MutationOptions<TResponse, ApiError, TBody>) => {
         const queryClient = useQueryClient()
+        const { invalidateKeys, onSuccess, onError, onSettled, ...mutationOptions } =
+            toValue(options) ?? {}
 
         return useMutation<TResponse, ApiError, TBody>({
+            ...mutationOptions,
             mutationFn: (variables: TBody) => {
                 const url = typeof endpoint === 'function' ? endpoint(variables) : endpoint
                 // 动态端点：目前 variables 中用于构建 URL 路径的字段仍会包含在请求体中
@@ -45,20 +49,20 @@ export const createMutation = <TResponse = unknown, TBody = unknown>(
                 })
             },
             onSuccess: async (data, variables) => {
-                if (options?.invalidateKeys?.length) {
+                if (invalidateKeys?.length) {
                     await Promise.all(
-                        options.invalidateKeys.map((key) =>
+                        invalidateKeys.map((key) =>
                             queryClient.invalidateQueries({ queryKey: [key] })
                         )
                     )
                 }
-                options?.onSuccess?.(data, variables)
+                onSuccess?.(data, variables)
             },
             onError: (error, variables) => {
-                options?.onError?.(error, variables)
+                onError?.(error, variables)
             },
             onSettled: (data, error, variables) => {
-                options?.onSettled?.(data, error, variables)
+                onSettled?.(data, error, variables)
             }
         })
     }

@@ -342,6 +342,20 @@ describe('fetcher', () => {
 
         expect(result).toEqual({ id: 1, name: 'test' })
     })
+
+    it('should compose external abort signal with internal timeout signal', async () => {
+        mockFetch.mockResolvedValueOnce(mockJsonResponse({ code: 0, data: null }))
+        const controller = new AbortController()
+
+        await fetcher('/api/test', {
+            baseURL: 'http://api.com',
+            signal: controller.signal
+        })
+
+        const callArgs = mockFetch.mock.calls[0][1] as RequestInit
+        expect(callArgs.signal).toBeInstanceOf(AbortSignal)
+        expect(callArgs.signal).not.toBe(controller.signal)
+    })
 })
 
 describe('createFetcher', () => {
@@ -363,6 +377,28 @@ describe('createFetcher', () => {
 
         const callArgs = mockFetch.mock.calls[0][1] as RequestInit
         expect((callArgs.headers as Record<string, string>)['Authorization']).toBe('test-token')
+    })
+
+    it('should merge HeadersInit values without losing default headers', async () => {
+        mockFetch.mockResolvedValueOnce(mockJsonResponse({ code: 0, data: 'ok' }))
+
+        const request = createFetcher({
+            baseURL: 'http://api.com',
+            headers: new Headers({ 'X-Default': 'default' })
+        })
+
+        await request('/api/test', {
+            method: 'GET',
+            headers: [['X-Custom', 'custom']]
+        })
+
+        const callArgs = mockFetch.mock.calls[0][1] as RequestInit
+        expect(callArgs.headers).toEqual(
+            expect.objectContaining({
+                'x-default': 'default',
+                'X-Custom': 'custom'
+            })
+        )
     })
 })
 
