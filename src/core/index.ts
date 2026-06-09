@@ -1,3 +1,6 @@
 export * from './fetcher'
 export * from './error'
 export * from './client'
+export * from './query'
+export * from './mutation'
+export * from './infinite-query'

@@ -5,6 +5,7 @@ describe('resolveError', () => {
     it('should return mapped message for known status', () => {
         expect(resolveError(404)).toBe('请求资源或接口不存在')
         expect(resolveError(500)).toBe('服务器发生异常')
+        expect(resolveError(499)).toBe('请求已取消')
         expect(resolveError(999)).toBe('未知异常，请联系运维或客服')
     })
 
@@ -24,6 +25,7 @@ describe('resolveError', () => {
         expect(HTTP_ERROR_MESSAGES[405]).toBeDefined()
         expect(HTTP_ERROR_MESSAGES[408]).toBeDefined()
         expect(HTTP_ERROR_MESSAGES[429]).toBeDefined()
+        expect(HTTP_ERROR_MESSAGES[499]).toBeDefined()
         expect(HTTP_ERROR_MESSAGES[500]).toBeDefined()
         expect(HTTP_ERROR_MESSAGES[502]).toBeDefined()
         expect(HTTP_ERROR_MESSAGES[503]).toBeDefined()

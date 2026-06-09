@@ -9,7 +9,7 @@ export type ResponseResolver<T = unknown> = (
     businessErrorCodesMap: Record<string, string>
 ) => T
 
-export interface FetcherOptions extends RequestInit {
+export interface FetcherOptions extends Omit<RequestInit, 'body' | 'method'> {
     /** 以下选项经常在 createFetcher 中全局固定 */
     baseURL?: string
     authStorageKey?: string | (() => string | null | undefined)
@@ -23,6 +23,7 @@ export interface FetcherOptions extends RequestInit {
 
     urlParams?: Record<string, unknown>
     method?: HttpMethod
+    body?: unknown
 }
 
 /**
@@ -52,9 +53,10 @@ export const fetcher = async <T = unknown>(
     }
     const url = buildUrl(baseURL, endpoint, urlParams)
     const headers = buildHeader(authStorageKey, authHeaderKey, rest.headers, storage)
-    const finalBody = buildBody(body, headers as Record<string, string>)
+    const finalBody = buildBody(body, headers)
 
     const controller = new AbortController()
+    let timeoutAbort = false
     const onAbort = () => {
         if (signal && 'reason' in signal) {
             controller.abort(signal.reason)
@@ -67,7 +69,10 @@ export const fetcher = async <T = unknown>(
     } else {
         signal?.addEventListener('abort', onAbort, { once: true })
     }
-    const timeoutId = setTimeout(() => controller.abort(), timeout)
+    const timeoutId = setTimeout(() => {
+        timeoutAbort = true
+        controller.abort(new DOMException('The request timed out.', 'TimeoutError'))
+    }, timeout)
 
     try {
         const response = await fetch(url, {
@@ -97,8 +102,8 @@ export const fetcher = async <T = unknown>(
         if (error instanceof HttpError || error instanceof BusinessError) {
             throw error
         }
-        if (error instanceof DOMException && error.name === 'AbortError') {
-            throw new HttpError(408, { url, method })
+        if (controller.signal.aborted || isAbortError(error)) {
+            throw new HttpError(timeoutAbort ? 408 : 499, { url, method })
         }
         // 其他错误 - 网络错误 / 跨域 / 连接失败 等
         throw new HttpError(999, { url, method })
@@ -139,7 +144,7 @@ function buildHeader(
     authHeaderKey?: string,
     customHeaders?: HeadersInit,
     storage?: Storage
-) {
+): Record<string, string> {
     const defaultHeaders: Record<string, string> = {
         'Content-Type': 'application/json'
     }
@@ -181,15 +186,22 @@ function getStorage(storage?: Storage): Storage {
 }
 
 // 构建请求体
-function buildBody(body: BodyInit | null | undefined, headers: Record<string, string>) {
+function buildBody(body: unknown, headers: Record<string, string>): BodyInit | undefined {
     if (body == null) return undefined
 
-    if (body instanceof FormData) {
-        delete headers['Content-Type']
+    if (isFormData(body)) {
+        deleteContentType(headers)
         return body
     }
 
-    return typeof body === 'string' ? body : JSON.stringify(body)
+    if (isBodyInit(body)) {
+        if (typeof body !== 'string') {
+            deleteDefaultJsonContentType(headers)
+        }
+        return body
+    }
+
+    return JSON.stringify(body)
 }
 
 export function createFetcher(defaultOptions: Partial<FetcherOptions>) {
@@ -236,4 +248,62 @@ function headersToRecord(headers?: HeadersInit): Record<string, string> {
     }
 
     return { ...headers }
+}
+
+function isAbortError(error: unknown): boolean {
+    return error instanceof DOMException && error.name === 'AbortError'
+}
+
+function isBodyInit(body: unknown): body is BodyInit {
+    return (
+        typeof body === 'string' ||
+        isBlob(body) ||
+        isArrayBuffer(body) ||
+        isArrayBufferView(body) ||
+        isReadableStream(body) ||
+        isURLSearchParams(body)
+    )
+}
+
+function isFormData(body: unknown): body is FormData {
+    return typeof FormData !== 'undefined' && body instanceof FormData
+}
+
+function isBlob(body: unknown): body is Blob {
+    return typeof Blob !== 'undefined' && body instanceof Blob
+}
+
+function isURLSearchParams(body: unknown): body is URLSearchParams {
+    return typeof URLSearchParams !== 'undefined' && body instanceof URLSearchParams
+}
+
+function isReadableStream(body: unknown): body is ReadableStream {
+    return typeof ReadableStream !== 'undefined' && body instanceof ReadableStream
+}
+
+function isArrayBuffer(body: unknown): body is ArrayBuffer {
+    return typeof ArrayBuffer !== 'undefined' && body instanceof ArrayBuffer
+}
+
+function isArrayBufferView(body: unknown): body is ArrayBufferView<ArrayBuffer> {
+    return ArrayBuffer.isView(body) && body.buffer instanceof ArrayBuffer
+}
+
+function deleteContentType(headers: Record<string, string>) {
+    for (const key of Object.keys(headers)) {
+        if (key.toLowerCase() === 'content-type') {
+            delete headers[key]
+        }
+    }
+}
+
+function deleteDefaultJsonContentType(headers: Record<string, string>) {
+    for (const [key, value] of Object.entries(headers)) {
+        if (
+            key.toLowerCase() === 'content-type' &&
+            value.toLowerCase().includes('application/json')
+        ) {
+            delete headers[key]
+        }
+    }
 }

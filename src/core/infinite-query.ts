@@ -1,18 +1,27 @@
 import { computed, MaybeRef, toValue } from 'vue'
 import { fetcher, FetcherOptions, RequestFn } from './fetcher'
 import { ApiError } from './error'
-import { useInfiniteQuery, InfiniteData } from '@tanstack/vue-query'
+import { useInfiniteQuery, InfiniteData, UseInfiniteQueryOptions } from '@tanstack/vue-query'
+import { ExtractInner } from '../types'
+import { getDynamicEndpointKey, hasRequestParams } from './query-key'
 
 export interface PageParam {
     pageNum: number
     pageSize: number
 }
 
-export interface InfiniteQueryOptions<
+type InfiniteQueryInnerOptions<TResponse, TSelected> = Omit<
+    ExtractInner<
+        UseInfiniteQueryOptions<TResponse, ApiError, TSelected, readonly unknown[], PageParam>
+    >,
+    'queryKey' | 'queryFn' | 'initialPageParam' | 'getNextPageParam'
+>
+
+export type InfiniteQueryOptions<
     TResponse,
     TRequest,
     TSelected = InfiniteData<TResponse, PageParam>
-> {
+> = InfiniteQueryInnerOptions<TResponse, TSelected> & {
     params?: MaybeRef<TRequest>
     pageKey?: string
     pageSizeKey?: string
@@ -25,12 +34,6 @@ export interface InfiniteQueryOptions<
      * 如果都不匹配则返回 []（即不再加载），此时需手动提供。
      */
     extractList?: (response: TResponse) => unknown[]
-
-    enabled?: MaybeRef<boolean>
-    staleTime?: MaybeRef<number>
-    gcTime?: MaybeRef<number>
-    select?: (data: InfiniteData<TResponse, PageParam>) => TSelected
-    refetchOnWindowFocus?: MaybeRef<boolean>
 }
 
 const DEFAULT_INITIAL_PAGE = 1
@@ -55,30 +58,44 @@ export const createInfiniteQuery = <TResponse, TRequest>(
     fetcherOptions?: FetcherOptions,
     request: RequestFn = fetcher
 ) => {
+    const dynamicEndpointKey =
+        typeof endpoint === 'function' ? getDynamicEndpointKey(endpoint) : undefined
+
     return <TSelected = InfiniteData<TResponse, PageParam>>(
         options?: InfiniteQueryOptions<TResponse, TRequest, TSelected>
     ) => {
+        const {
+            params: _optionParams,
+            pageKey = DEFAULT_PAGE_KEY,
+            pageSizeKey = DEFAULT_PAGE_SIZE_KEY,
+            initialPage = DEFAULT_INITIAL_PAGE,
+            pageSize = DEFAULT_PAGE_SIZE,
+            extractList = defaultExtractList,
+            ...queryOptions
+        } = options ?? {}
         const params = computed(() => toValue(options?.params))
         const isDynamic = typeof endpoint === 'function'
-
-        const pageKey = options?.pageKey ?? DEFAULT_PAGE_KEY
-        const pageSizeKey = options?.pageSizeKey ?? DEFAULT_PAGE_SIZE_KEY
-
-        const initialPage = options?.initialPage ?? DEFAULT_INITIAL_PAGE
-        const pageSize = options?.pageSize ?? DEFAULT_PAGE_SIZE
-        const extractList = options?.extractList ?? defaultExtractList
         const initialPageParam: PageParam = { pageNum: initialPage, pageSize }
 
         return useInfiniteQuery<TResponse, ApiError, TSelected, readonly unknown[], PageParam>({
             // queryKey 使用 initialPageParam 构建以保持稳定——无限查询的 key 标识整个查询而非单页
             queryKey: computed(() => {
                 const p = params.value
-                const url = isDynamic ? endpoint(p, initialPageParam) : endpoint
                 const pageConfig = { pageKey, pageSizeKey, initialPage, pageSize }
-                return p ? [url, p, pageConfig] : [url, pageConfig]
+                if (isDynamic) {
+                    return hasRequestParams(p)
+                        ? [endpoint(p, initialPageParam), p, pageConfig]
+                        : [dynamicEndpointKey, 'pending-params', pageConfig]
+                }
+                return hasRequestParams(p) ? [endpoint, p, pageConfig] : [endpoint, pageConfig]
             }),
             queryFn: ({ pageParam, signal }) => {
                 const p = params.value
+                if (isDynamic && !hasRequestParams(p)) {
+                    return Promise.reject(
+                        new Error('Dynamic endpoint requires params before requesting.')
+                    )
+                }
                 const url = isDynamic ? endpoint(p, pageParam) : endpoint
                 return request<TResponse>(url, {
                     ...fetcherOptions,
@@ -100,7 +117,7 @@ export const createInfiniteQuery = <TResponse, TRequest>(
                     ? undefined
                     : { pageNum: lastParam.pageNum + 1, pageSize: lastParam.pageSize }
             },
-            ...options
+            ...queryOptions
         })
     }
 }

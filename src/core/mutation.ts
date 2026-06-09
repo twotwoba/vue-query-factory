@@ -1,17 +1,36 @@
-import { toValue } from 'vue'
+import { toValue, unref } from 'vue'
 import { useMutation, UseMutationOptions, useQueryClient } from '@tanstack/vue-query'
 import { ExtractInner, HttpMethod } from '../types'
 import { fetcher, FetcherOptions, RequestFn } from './fetcher'
 import { ApiError } from './error'
 
-export type MutationOptions<TResponse, TError, TBody> = Omit<
-    ExtractInner<UseMutationOptions<TResponse, TError, TBody>>,
-    'mutationFn' | 'onSuccess' | 'onError' | 'onSettled'
+type MutationSuccessCallback<TResponse, TBody, TOnMutateResult> = (
+    data: TResponse,
+    variables: TBody,
+    onMutateResult: TOnMutateResult,
+    context: unknown
+) => unknown
+
+type MutationErrorCallback<TBody, TOnMutateResult> = (
+    error: ApiError,
+    variables: TBody,
+    onMutateResult: TOnMutateResult | undefined,
+    context: unknown
+) => unknown
+
+type MutationSettledCallback<TResponse, TBody, TOnMutateResult> = (
+    data: TResponse | undefined,
+    error: ApiError | null,
+    variables: TBody,
+    onMutateResult: TOnMutateResult | undefined,
+    context: unknown
+) => unknown
+
+export type MutationOptions<TResponse, TError, TBody, TOnMutateResult = unknown> = Omit<
+    ExtractInner<UseMutationOptions<TResponse, TError, TBody, TOnMutateResult>>,
+    'mutationFn'
 > & {
     invalidateKeys?: string[]
-    onSuccess?: (data: TResponse, variables: TBody) => void
-    onError?: (error: TError, variables: TBody) => void
-    onSettled?: (data: TResponse | undefined, error: TError | null, variables: TBody) => void
 }
 
 /**
@@ -32,12 +51,14 @@ export const createMutation = <TResponse = unknown, TBody = unknown>(
     fetcherOptions?: FetcherOptions,
     request: RequestFn = fetcher
 ) => {
-    return (options?: MutationOptions<TResponse, ApiError, TBody>) => {
+    return <TOnMutateResult = unknown>(
+        options?: MutationOptions<TResponse, ApiError, TBody, TOnMutateResult>
+    ) => {
         const queryClient = useQueryClient()
         const { invalidateKeys, onSuccess, onError, onSettled, ...mutationOptions } =
             toValue(options) ?? {}
 
-        return useMutation<TResponse, ApiError, TBody>({
+        return useMutation<TResponse, ApiError, TBody, TOnMutateResult>({
             ...mutationOptions,
             mutationFn: (variables: TBody) => {
                 const url = typeof endpoint === 'function' ? endpoint(variables) : endpoint
@@ -45,10 +66,10 @@ export const createMutation = <TResponse = unknown, TBody = unknown>(
                 return request<TResponse>(url, {
                     ...fetcherOptions,
                     method,
-                    body: variables as BodyInit
+                    body: variables
                 })
             },
-            onSuccess: async (data, variables) => {
+            onSuccess: async (data, variables, onMutateResult, context) => {
                 if (invalidateKeys?.length) {
                     await Promise.all(
                         invalidateKeys.map((key) =>
@@ -56,13 +77,22 @@ export const createMutation = <TResponse = unknown, TBody = unknown>(
                         )
                     )
                 }
-                onSuccess?.(data, variables)
+                const resolvedOnSuccess = unref(onSuccess) as
+                    | MutationSuccessCallback<TResponse, TBody, TOnMutateResult>
+                    | undefined
+                return resolvedOnSuccess?.(data, variables, onMutateResult, context)
             },
-            onError: (error, variables) => {
-                onError?.(error, variables)
+            onError: (error, variables, onMutateResult, context) => {
+                const resolvedOnError = unref(onError) as
+                    | MutationErrorCallback<TBody, TOnMutateResult>
+                    | undefined
+                return resolvedOnError?.(error, variables, onMutateResult, context)
             },
-            onSettled: (data, error, variables) => {
-                onSettled?.(data, error, variables)
+            onSettled: (data, error, variables, onMutateResult, context) => {
+                const resolvedOnSettled = unref(onSettled) as
+                    | MutationSettledCallback<TResponse, TBody, TOnMutateResult>
+                    | undefined
+                return resolvedOnSettled?.(data, error, variables, onMutateResult, context)
             }
         })
     }

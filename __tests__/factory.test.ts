@@ -1,7 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { createMutation } from '../src/core/mutation'
-import { createQuery } from '../src/core/query'
-import { createInfiniteQuery, PageParam } from '../src/core/infinite-query'
+import { createMutation, createQuery, createInfiniteQuery, PageParam } from '../src'
 
 const mocks = vi.hoisted(() => ({
     useQuery: vi.fn(),
@@ -79,10 +77,62 @@ describe('query factories', () => {
 
         const data = { id: 1 }
         const variables = { name: 'Alice' }
-        await mutationOptions.onSuccess(data, variables)
+        const onMutateResult = { previous: 'state' }
+        const context = { meta: { source: 'test' } }
+        await mutationOptions.onSuccess(data, variables, onMutateResult, context)
 
         expect(mocks.invalidateQueries).toHaveBeenCalledWith({ queryKey: ['/users'] })
-        expect(onSuccess).toHaveBeenCalledWith(data, variables)
+        expect(onSuccess).toHaveBeenCalledWith(data, variables, onMutateResult, context)
+    })
+
+    it('awaits invalidation before resolving mutation onSuccess', async () => {
+        const order: string[] = []
+        const request = vi.fn().mockResolvedValue({ id: 1 })
+        mocks.invalidateQueries.mockImplementation(async () => {
+            order.push('invalidate')
+        })
+        const onSuccess = vi.fn(async () => {
+            order.push('onSuccess')
+        })
+        const useCreateUser = createMutation<{ id: number }, { name: string }>(
+            '/users',
+            'POST',
+            undefined,
+            request
+        )
+
+        useCreateUser({ invalidateKeys: ['/users'], onSuccess })
+
+        const mutationOptions = mocks.useMutation.mock.calls[0][0]
+        await mutationOptions.onSuccess({ id: 1 }, { name: 'Alice' }, undefined, {})
+
+        expect(order).toEqual(['invalidate', 'onSuccess'])
+    })
+
+    it('does not call dynamic query endpoint while params are pending', () => {
+        const endpoint = vi.fn((params: { id: number } | undefined) => `/users/${params!.id}`)
+        const useUser = createQuery<{ id: number }, { id: number }>(endpoint, undefined, vi.fn())
+
+        expect(() => useUser({ enabled: false })).not.toThrow()
+
+        const queryOptions = mocks.useQuery.mock.calls[0][0]
+        expect(queryOptions.queryKey.value).toEqual([
+            expect.stringContaining('vue-query-factory:dynamic-endpoint:'),
+            'pending-params'
+        ])
+        expect(endpoint).not.toHaveBeenCalled()
+    })
+
+    it('throws a clear error when manually requesting a dynamic query without params', async () => {
+        const endpoint = vi.fn((params: { id: number } | undefined) => `/users/${params!.id}`)
+        const useUser = createQuery<{ id: number }, { id: number }>(endpoint, undefined, vi.fn())
+
+        useUser({ enabled: false })
+
+        const queryOptions = mocks.useQuery.mock.calls[0][0]
+        await expect(
+            queryOptions.queryFn({ signal: new AbortController().signal })
+        ).rejects.toThrow('Dynamic endpoint requires params before requesting.')
     })
 
     it('adds infinite query paging config to queryKey', () => {
@@ -125,6 +175,55 @@ describe('query factories', () => {
                 urlParams: { keyword: 'a', pageNum: 1, pageSize: 20 }
             })
         )
+    })
+
+    it('does not call dynamic infinite endpoint while params are pending', () => {
+        const endpoint = vi.fn(
+            (params: { userId: number } | undefined) => `/users/${params!.userId}/posts`
+        )
+        const usePosts = createInfiniteQuery<{ list: string[] }, { userId: number }>(
+            endpoint,
+            undefined,
+            vi.fn()
+        )
+
+        expect(() => usePosts({ enabled: false })).not.toThrow()
+
+        const infiniteOptions = mocks.useInfiniteQuery.mock.calls[0][0]
+        expect(infiniteOptions.queryKey.value).toEqual([
+            expect.stringContaining('vue-query-factory:dynamic-endpoint:'),
+            'pending-params',
+            { pageKey: 'pageNum', pageSizeKey: 'pageSize', initialPage: 1, pageSize: 10 }
+        ])
+        expect(endpoint).not.toHaveBeenCalled()
+    })
+
+    it('does not pass internal infinite query options to TanStack', () => {
+        const extractList = vi.fn((response: { list: string[] }) => response.list)
+        const useUsers = createInfiniteQuery<{ list: string[] }, { keyword: string }>(
+            '/users',
+            undefined,
+            vi.fn()
+        )
+
+        useUsers({
+            params: { keyword: 'a' },
+            pageSize: 20,
+            pageKey: 'current',
+            pageSizeKey: 'size',
+            initialPage: 2,
+            extractList,
+            retry: 2
+        })
+
+        const infiniteOptions = mocks.useInfiniteQuery.mock.calls[0][0]
+        expect(infiniteOptions).toEqual(expect.objectContaining({ retry: 2 }))
+        expect(infiniteOptions).not.toHaveProperty('params')
+        expect(infiniteOptions).not.toHaveProperty('pageSize')
+        expect(infiniteOptions).not.toHaveProperty('pageKey')
+        expect(infiniteOptions).not.toHaveProperty('pageSizeKey')
+        expect(infiniteOptions).not.toHaveProperty('initialPage')
+        expect(infiniteOptions).not.toHaveProperty('extractList')
     })
 
     it('stops infinite pagination when the default list candidate is not an array', () => {

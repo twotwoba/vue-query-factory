@@ -119,15 +119,41 @@ describe('fetcher', () => {
     })
 
     it('should throw HttpError(408) on timeout', async () => {
-        const abortError = new DOMException('The operation was aborted.', 'AbortError')
-        mockFetch.mockRejectedValueOnce(abortError)
-
+        vi.useFakeTimers()
         try {
-            await fetcher('/api/slow', { baseURL: 'http://api.com', timeout: 100 })
-        } catch (e) {
-            expect(e).toBeInstanceOf(HttpError)
-            expect((e as HttpError).code).toBe(408)
+            const abortError = new DOMException('The operation was aborted.', 'AbortError')
+            mockFetch.mockImplementationOnce((_url, init: RequestInit) => {
+                return new Promise((_resolve, reject) => {
+                    init.signal?.addEventListener('abort', () => reject(abortError), { once: true })
+                })
+            })
+
+            const request = fetcher('/api/slow', { baseURL: 'http://api.com', timeout: 100 })
+            const assertion = expect(request).rejects.toMatchObject({ code: 408 })
+            await vi.advanceTimersByTimeAsync(100)
+
+            await assertion
+        } finally {
+            vi.useRealTimers()
         }
+    })
+
+    it('should throw HttpError(499) on external abort', async () => {
+        const controller = new AbortController()
+        const abortError = new DOMException('The operation was aborted.', 'AbortError')
+        mockFetch.mockImplementationOnce((_url, init: RequestInit) => {
+            return new Promise((_resolve, reject) => {
+                init.signal?.addEventListener('abort', () => reject(abortError), { once: true })
+            })
+        })
+
+        const request = fetcher('/api/cancelled', {
+            baseURL: 'http://api.com',
+            signal: controller.signal
+        })
+        controller.abort()
+
+        await expect(request).rejects.toMatchObject({ code: 499 })
     })
 
     it('should throw HttpError(999) on network error', async () => {
@@ -292,7 +318,7 @@ describe('fetcher', () => {
         await fetcher('/api/users', {
             baseURL: 'http://api.com',
             method: 'POST',
-            body: { name: 'test' } as any
+            body: { name: 'test' }
         })
 
         const callArgs = mockFetch.mock.calls[0][1] as RequestInit
@@ -313,6 +339,54 @@ describe('fetcher', () => {
         })
 
         const callArgs = mockFetch.mock.calls[0][1] as RequestInit
+        expect((callArgs.headers as Record<string, string>)['Content-Type']).toBeUndefined()
+    })
+
+    it('should remove lowercase Content-Type header for FormData', async () => {
+        mockFetch.mockResolvedValueOnce(mockJsonResponse({ code: 0, data: null }))
+
+        const formData = new FormData()
+        formData.append('file', 'content')
+
+        await fetcher('/api/upload', {
+            baseURL: 'http://api.com',
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: formData
+        })
+
+        const callArgs = mockFetch.mock.calls[0][1] as RequestInit
+        expect(callArgs.headers).not.toHaveProperty('content-type')
+        expect(callArgs.body).toBe(formData)
+    })
+
+    it('should pass through URLSearchParams bodies without JSON stringifying', async () => {
+        mockFetch.mockResolvedValueOnce(mockJsonResponse({ code: 0, data: null }))
+
+        const body = new URLSearchParams({ q: 'test' })
+        await fetcher('/api/search', {
+            baseURL: 'http://api.com',
+            method: 'POST',
+            body
+        })
+
+        const callArgs = mockFetch.mock.calls[0][1] as RequestInit
+        expect(callArgs.body).toBe(body)
+        expect((callArgs.headers as Record<string, string>)['Content-Type']).toBeUndefined()
+    })
+
+    it('should pass through Blob bodies without JSON stringifying', async () => {
+        mockFetch.mockResolvedValueOnce(mockJsonResponse({ code: 0, data: null }))
+
+        const body = new Blob(['hello'], { type: 'text/plain' })
+        await fetcher('/api/blob', {
+            baseURL: 'http://api.com',
+            method: 'POST',
+            body
+        })
+
+        const callArgs = mockFetch.mock.calls[0][1] as RequestInit
+        expect(callArgs.body).toBe(body)
         expect((callArgs.headers as Record<string, string>)['Content-Type']).toBeUndefined()
     })
 
