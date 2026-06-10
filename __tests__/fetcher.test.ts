@@ -118,6 +118,48 @@ describe('fetcher', () => {
         }
     })
 
+    it('should support businessErrorConfig errMsgKey and tipFunc', async () => {
+        const tipFunc = vi.fn()
+        mockFetch.mockResolvedValueOnce(mockJsonResponse({ code: 1002, errMsg: '余额不足' }))
+
+        try {
+            await fetcher('/api/biz-error', {
+                baseURL: 'http://api.com',
+                businessErrorConfig: {
+                    codes: [[1002]],
+                    errMsgKey: 'errMsg',
+                    tipFunc
+                }
+            })
+            expect.unreachable('Should have thrown')
+        } catch (e) {
+            expect(e).toBeInstanceOf(BusinessError)
+            expect((e as BusinessError).message).toBe('余额不足')
+            expect(tipFunc).toHaveBeenCalledWith('余额不足', e)
+        }
+    })
+
+    it('should merge legacy businessErrorCodesMap with businessErrorConfig options', async () => {
+        const tipFunc = vi.fn()
+        mockFetch.mockResolvedValueOnce(mockJsonResponse({ code: 'BIZ_ERROR', msg: '业务异常' }))
+
+        try {
+            await fetcher('/api/biz-error', {
+                baseURL: 'http://api.com',
+                businessErrorCodesMap: { BIZ_ERROR: '' },
+                businessErrorConfig: {
+                    errMsgKey: 'msg',
+                    tipFunc
+                }
+            })
+            expect.unreachable('Should have thrown')
+        } catch (e) {
+            expect(e).toBeInstanceOf(BusinessError)
+            expect((e as BusinessError).message).toBe('业务异常')
+            expect(tipFunc).toHaveBeenCalledWith('业务异常', e)
+        }
+    })
+
     it('should throw HttpError(408) on timeout', async () => {
         vi.useFakeTimers()
         try {

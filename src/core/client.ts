@@ -9,7 +9,7 @@ export interface ClientOptions extends Partial<FetcherOptions> {}
 /**
  * 创建 API 客户端，选择性固定 baseURL, timeout 等方法
  *
- * @example  const {createQuery, createMutation, createInfiniteQuery} = createClient({baseURL: "http://demo/api", businessErrorCodesMap: {888: "错了错了错了！"}})
+ * @example  const {createQuery, createMutation, createInfiniteQuery} = createClient({baseURL: "http://demo/api", businessErrorConfig: {codes: [[888, "错了错了错了！"]]}})
  */
 export function createClient(options: ClientOptions) {
     const request = createFetcher(options)

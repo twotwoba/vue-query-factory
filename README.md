@@ -53,9 +53,12 @@ export const { createQuery, createMutation, createInfiniteQuery } = createClient
     // 当 storage 中存储的是对象时，可以传入自定义函数提取 token：
     // authStorageKey: () => JSON.parse(localStorage.getItem('user_info')!).accessToken,
     authHeaderKey: 'Access-Token', // 请求头中携带 token 的 header 名称
-    businessErrorCodesMap: {
-        '10001': '用户不存在',
-        '10002': '余额不足'
+    businessErrorConfig: {
+        codes: [
+            ['10001', '用户不存在'],
+            ['10002'] // 未配置文案时，使用接口返回的 message
+        ],
+        errMsgKey: 'message'
     }
 })
 ```
@@ -98,7 +101,7 @@ const { createQuery, createMutation, createInfiniteQuery, request } = createClie
     timeout: 10_000,                 // 请求超时（默认 10s）
     authStorageKey: 'token',         // localStorage 中存储 token 的 key
     authHeaderKey: 'Access-Token',   // 请求头中携带 token 的 header 名称
-    businessErrorCodesMap: { ... },  // 业务错误码映射
+    businessErrorConfig: { ... },    // 业务错误码配置
     headers: { ... },                // 自定义默认请求头
 })
 ```
@@ -285,7 +288,7 @@ try {
 }
 ```
 
-**BusinessError** — 业务层错误（后端返回的 code 命中 `businessErrorCodesMap`）：
+**BusinessError** — 业务层错误（后端返回的 code 命中 `businessErrorConfig.codes`）：
 
 ```ts
 import { isBusinessError } from 'vue-query-factory'
@@ -297,6 +300,32 @@ if (isBusinessError(e)) {
 }
 ```
 
+业务错误推荐使用 `businessErrorConfig` 配置：
+
+```ts
+import { ElMessage } from 'element-plus'
+
+createClient({
+    baseURL: '/api',
+    businessErrorConfig: {
+        codes: [
+            [10001, '用户不存在'], // 使用前端自定义文案
+            [10002] // 使用接口返回的错误文案
+        ],
+        errMsgKey: 'errMsg', // 默认是 'message'，可按后端字段改为 msg / errMsg 等
+        tipFunc: (message) => ElMessage.error(message)
+    }
+})
+```
+
+默认 `resolveResponse` 命中业务错误码时，会按以下顺序决定 `BusinessError.message`：
+
+1. `businessErrorConfig.codes` 中配置的文案
+2. 响应体里的 `response[businessErrorConfig.errMsgKey ?? 'message']`
+3. `操作失败，(code)`
+
+`tipFunc` 只负责页面提示，不会吞掉错误；请求仍会 `throw BusinessError`。这是与 Promise、`async/await` 和 TanStack Query 最兼容的方式：直接 `request()` 时用 `try/catch`，在 `createQuery` / `createMutation` 中用 `error` 状态或 `onError` 处理。`tipFunc` 适合做全局 toast，例如 Element Plus 的 `ElMessage.error`。
+
 ## Fetcher Options
 
 `createClient` 和各工厂方法支持的请求配置：
@@ -307,11 +336,20 @@ if (isBusinessError(e)) {
 | `timeout`               | `number`                         | `10000`                                  | 请求超时（ms）                                           |
 | `authStorageKey`        | `string \| () => string \| null` | -                                        | localStorage 中存储 token 的 key，或自定义函数获取 token |
 | `authHeaderKey`         | `string`                         | -                                        | 请求头中携带 token 的 header 名称                        |
-| `businessErrorCodesMap` | `Record<string, string>`         | `{}`                                     | 业务错误码到提示消息的映射                               |
+| `businessErrorConfig`   | `BusinessErrorConfig`            | `{}`                                     | 业务错误码、错误文案字段和提示函数配置                   |
+| `businessErrorCodesMap` | `Record<string, string>`         | `{}`                                     | 旧版业务错误码映射，建议改用 `businessErrorConfig.codes` |
 | `headers`               | `HeadersInit`                    | `{ 'Content-Type': 'application/json' }` | 自定义请求头                                             |
 | `urlParams`             | `Record<string, unknown>`        | -                                        | URL query 参数（null/undefined 会被过滤）                |
 | `method`                | `HttpMethod`                     | `'GET'`                                  | 请求方法                                                 |
 | `body`                  | `BodyInit`                       | -                                        | 请求体（支持 FormData）                                  |
+
+`BusinessErrorConfig`：
+
+| 选项        | 类型                                                 | 默认值      | 说明                             |
+| ----------- | ---------------------------------------------------- | ----------- | -------------------------------- |
+| `codes`     | `Array<[string \| number, string?]>`                 | `[]`        | 业务错误码列表，第二项可选       |
+| `errMsgKey` | `string`                                             | `'message'` | 从响应体读取错误文案的字段名     |
+| `tipFunc`   | `(message: string, error: BusinessError) => unknown` | -           | 命中业务错误时执行的页面提示函数 |
 
 ## License
 

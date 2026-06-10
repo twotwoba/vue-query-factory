@@ -1,4 +1,10 @@
-import { resolveResponse } from '../helper/resolve-response'
+import {
+    BusinessErrorConfig,
+    BusinessErrorConfigInput,
+    BusinessErrorCodesMap,
+    HttpResponse,
+    resolveResponse
+} from '../helper/resolve-response'
 import { omitNilOfObj } from '../helper/utils'
 import { HttpMethod } from '../types'
 import { BusinessError, HttpError } from './error'
@@ -6,7 +12,8 @@ import { BusinessError, HttpError } from './error'
 const DEFAULT_TIMEOUT = 10_000
 export type ResponseResolver<T = unknown> = (
     response: unknown,
-    businessErrorCodesMap: Record<string, string>
+    businessErrorCodesMap: BusinessErrorCodesMap,
+    businessErrorConfig?: BusinessErrorConfigInput
 ) => T
 
 export interface FetcherOptions extends Omit<RequestInit, 'body' | 'method'> {
@@ -14,11 +21,13 @@ export interface FetcherOptions extends Omit<RequestInit, 'body' | 'method'> {
     baseURL?: string
     authStorageKey?: string | (() => string | null | undefined)
     authHeaderKey?: string
-    businessErrorCodesMap?: Record<string, string> // 业务错误码：提示信息
+    businessErrorConfig?: BusinessErrorConfig
+    /** @deprecated 请使用 businessErrorConfig.codes */
+    businessErrorCodesMap?: BusinessErrorCodesMap
     timeout?: number
     /** 自定义存储实例，默认使用 localStorage */
     storage?: Storage
-    /** 自定义响应解包函数，默认使用 resolveResponse（期望 { code, data, message } 结构） */
+    /** 自定义响应解包函数，默认使用 resolveResponse（期望 { code, data }，错误文案字段由 businessErrorConfig.errMsgKey 控制） */
     responseResolver?: ResponseResolver
 
     urlParams?: Record<string, unknown>
@@ -37,10 +46,11 @@ export const fetcher = async <T = unknown>(
         baseURL,
         authStorageKey,
         authHeaderKey,
+        businessErrorConfig,
         businessErrorCodesMap,
         timeout = DEFAULT_TIMEOUT,
         storage,
-        responseResolver = resolveResponse,
+        responseResolver = defaultResponseResolver,
         urlParams,
         method = 'GET',
         body,
@@ -93,7 +103,15 @@ export const fetcher = async <T = unknown>(
         const contentType = response.headers.get('content-type')
         if (contentType?.includes('application/json')) {
             const res = await response.json()
-            return responseResolver(res, businessErrorCodesMap ?? {}) as T
+            const resolvedBusinessErrorConfig = resolveBusinessErrorConfig(
+                businessErrorConfig,
+                businessErrorCodesMap
+            )
+            return responseResolver(
+                res,
+                businessErrorCodesMap ?? {},
+                resolvedBusinessErrorConfig
+            ) as T
         }
 
         return response.text() as unknown as T
@@ -110,6 +128,26 @@ export const fetcher = async <T = unknown>(
     } finally {
         clearTimeout(timeoutId)
         signal?.removeEventListener('abort', onAbort)
+    }
+}
+
+const defaultResponseResolver: ResponseResolver = (
+    response,
+    businessErrorCodesMap,
+    businessErrorConfig
+) => {
+    return resolveResponse(response as HttpResponse, businessErrorConfig ?? businessErrorCodesMap)
+}
+
+function resolveBusinessErrorConfig(
+    businessErrorConfig?: BusinessErrorConfig,
+    businessErrorCodesMap?: BusinessErrorCodesMap
+): BusinessErrorConfigInput {
+    if (!businessErrorConfig) return businessErrorCodesMap ?? {}
+    if (businessErrorConfig.codes) return businessErrorConfig
+    return {
+        ...businessErrorConfig,
+        codes: businessErrorCodesMap ? Object.entries(businessErrorCodesMap) : []
     }
 }
 

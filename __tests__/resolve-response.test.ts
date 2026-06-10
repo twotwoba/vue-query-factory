@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { resolveResponse } from '../src/helper/resolve-response'
 import { BusinessError } from '../src/core/error'
 
@@ -28,6 +28,57 @@ describe('resolveResponse', () => {
             resolveResponse({ code: 'MISSING', message: '缺少参数' }, { MISSING: '' })
         } catch (e) {
             expect((e as BusinessError).message).toBe('缺少参数')
+        }
+    })
+
+    it('should support businessErrorConfig codes tuple list', () => {
+        try {
+            resolveResponse({ code: 1001, message: '接口错误' }, { codes: [[1001, '配置错误']] })
+        } catch (e) {
+            expect(e).toBeInstanceOf(BusinessError)
+            expect((e as BusinessError).message).toBe('配置错误')
+        }
+    })
+
+    it('should fallback to configured errMsgKey when tuple message is omitted', () => {
+        try {
+            resolveResponse(
+                { code: 1002, errMsg: '接口返回错误' },
+                { codes: [[1002]], errMsgKey: 'errMsg' }
+            )
+        } catch (e) {
+            expect(e).toBeInstanceOf(BusinessError)
+            expect((e as BusinessError).message).toBe('接口返回错误')
+        }
+    })
+
+    it('should call tipFunc before throwing BusinessError', () => {
+        const tipFunc = vi.fn()
+
+        try {
+            resolveResponse(
+                { code: 'ERR001', message: '接口错误' },
+                { codes: [['ERR001']], tipFunc }
+            )
+        } catch (e) {
+            expect(e).toBeInstanceOf(BusinessError)
+            expect(tipFunc).toHaveBeenCalledWith('接口错误', e)
+        }
+    })
+
+    it('should ignore tipFunc errors and still throw original BusinessError', () => {
+        const tipFunc = vi.fn(() => {
+            throw new Error('tip failed')
+        })
+
+        try {
+            resolveResponse(
+                { code: 'ERR001', message: '接口错误' },
+                { codes: [['ERR001']], tipFunc }
+            )
+        } catch (e) {
+            expect(e).toBeInstanceOf(BusinessError)
+            expect((e as BusinessError).message).toBe('接口错误')
         }
     })
 
